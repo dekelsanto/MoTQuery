@@ -2,7 +2,7 @@
 
 regNumber=$1
 
-numbers=$(python3 licenseplate.py $1 | grep number)
+numbers=$(python3 motquery.py $1 | grep number)
 manufacturerNumber=$(echo $numbers | awk '{print $3}')
 modelNumber=$(echo $numbers | awk '{print $6}')
 
