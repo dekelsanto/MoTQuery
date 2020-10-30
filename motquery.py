@@ -102,7 +102,8 @@ def searchByMakeModelCode(session, makeCode, modelCode):
 
 def main():
     if len(sys.argv) not in [2, 3] or not all(map(lambda x: x.isdigit(), sys.argv[1:])):
-        print(f"Usage: {sys.argv[0]} <manufacturer#> <model#>")
+        print(f"Usage: {sys.argv[0]} <licensePlate> , or")
+        print(f"       {sys.argv[0]} <makeCode> <modelCode>")
         return
 
     session = requests.Session()
