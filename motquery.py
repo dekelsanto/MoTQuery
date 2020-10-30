@@ -62,10 +62,15 @@ def communicate(session, request):
     root = reply.json()
     return root["result"] if "result" in root else {}
 
-
+def formatLicensePlate(licensePlate):
+    if len(licensePlate) == 7:
+        return f"{licensePlate[:2]}-{licensePlate[2:5]}-{licensePlate[5:]}"
+    if len(licensePlate) == 8:
+        return f"{licensePlate[:3]}-{licensePlate[3:5]}-{licensePlate[5:]}"
 
 def formatPrint(jsonReply, fieldName, fieldKey):
-    print(f"\t{fieldName}: {jsonReply[fieldKey]}")
+    fieldValue = formatLicensePlate(str(jsonReply[fieldKey])) if fieldKey == "mispar_rechev" else jsonReply[fieldKey]
+    print(f"\t{fieldName}: {fieldValue}")
 
 def printVehicleDetails(jsonReply):
     print(f"*** Vehicle details for reg.# {jsonReply['mispar_rechev']} ***")
