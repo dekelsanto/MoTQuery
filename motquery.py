@@ -1,6 +1,7 @@
 import sys
 import json
 import time
+import argparse
 import requests
 
 JSON_NAME_TO_KEY_MAPPING = {
@@ -20,15 +21,6 @@ JSON_NAME_TO_KEY_MAPPING = {
 INLINE_PRINT_FIELDS = ["Registration", "Chassis", "Color"]
 
 
-def uniq(l, kf):
-    uniqueKeys = set()
-    result = []
-    for item in l:
-        if kf(item) not in uniqueKeys:
-            uniqueKeys.add(kf(item))
-            result.append(item)
-    return result
-
 def communicate(session, request):
     return session.send(request.prepare())
 
@@ -41,8 +33,8 @@ def generateHTTPRequest(filtersJson, count):
 def generateLicensePlateRequest(licensePlate):
     return generateHTTPRequest(generateJson({"mispar_rechev": licensePlate}), 1)
 
-def generateMakeModelCodeRequest(makeCode, modelCode, count):
-    return generateHTTPRequest(generateJson({"tozeret_cd": makeCode, "degem_cd": modelCode}), count)
+def generateRequestByParams(params, count):
+    return generateHTTPRequest(generateJson(params), count)
 
 def communicate(session, request):
     reply = None
@@ -76,10 +68,11 @@ def printVehicleDetails(jsonReply):
     print(f"*** Vehicle details for reg.# {jsonReply['mispar_rechev']} ***")
     for name, key in JSON_NAME_TO_KEY_MAPPING.items():
         formatPrint(jsonReply, name, key)
+    # print(jsonReply)
     print("")
 
-def inlinePrintVehicleDetails(jsonReply):
-    print(*[jsonReply[JSON_NAME_TO_KEY_MAPPING[field]] for field in INLINE_PRINT_FIELDS])
+def inlinePrintVehicleDetails(jsonReply, inlinePrintFields=INLINE_PRINT_FIELDS):
+    print(*[jsonReply[JSON_NAME_TO_KEY_MAPPING[field]] for field in inlinePrintFields])
 
 
 def searchByLicensePlate(session, licensePlate):
@@ -87,36 +80,59 @@ def searchByLicensePlate(session, licensePlate):
     licensePlateReply = communicate(session, licensePlateRequest)
     printVehicleDetails(licensePlateReply["records"][0])
 
-def searchByMakeModelCode(session, makeCode, modelCode):
-    totalCountRequest = generateMakeModelCodeRequest(makeCode, modelCode, 0)
+def baseSearchAll(session, searchParams, extraPrintFields=[]):
+    totalCountRequest = generateRequestByParams(searchParams, 0)
     totalCountReply = communicate(session, totalCountRequest)
     totalCount = totalCountReply["total"]
 
-    allResultsRequest = generateMakeModelCodeRequest(makeCode, modelCode, totalCount)
+    allResultsRequest = generateRequestByParams(searchParams, totalCount)
     allResultsReply = communicate(session, allResultsRequest)
     allResults = allResultsReply["records"]
-    
 
     print(f"\nFound {len(allResults)} unique results.")
     try:
         for result in sorted(allResults, key=lambda x: x["misgeret"]):
-            inlinePrintVehicleDetails(result)
+            inlinePrintVehicleDetails(result, INLINE_PRINT_FIELDS + extraPrintFields)
     except:
         pass
 
 
+def searchByMakeModelCode(session, makeCode, modelCode):
+    params = {"tozeret_cd": makeCode, "degem_cd": modelCode}
+    baseSearchAll(session, params)
+
+def searchByModelName(session, modelName):
+    params = {"degem_nm": modelName}
+    baseSearchAll(session, params, ["Manufacturer number", "Model number"])
+
+
 def main():
-    if len(sys.argv) not in [2, 3] or not all(map(lambda x: x.isdigit(), sys.argv[1:])):
-        print(f"Usage: {sys.argv[0]} <licensePlate> , or")
-        print(f"       {sys.argv[0]} <makeCode> <modelCode>")
+    parser = argparse.ArgumentParser("MoTQuery")
+    parser.add_argument("-l", "--licenseplate", dest="licensePlate", help="License plate")
+    parser.add_argument("-M", "--makecode", dest="makeCode", help="Make code")
+    parser.add_argument("-m", "--modelcode", dest="modelCode", help="Model code")
+    parser.add_argument("-n", "--modelname", dest="modelName", help="Model name")
+    
+    args = parser.parse_args()
+
+    if args.licensePlate and (args.makeCode or args.modelCode or args.modelName):
+        print("-l cannot be used in conjunction with other flags. Exiting")
+        return
+
+    if args.modelName and (args.makeCode or args.modelCode or args.licensePlate):
+        print("-n cannot be used in conjunction with other flags. Exiting")
         return
 
     session = requests.Session()
 
-    if len(sys.argv) == 2:
-        searchByLicensePlate(session, int(sys.argv[1]))
-    elif len(sys.argv) == 3:
-        searchByMakeModelCode(session, int(sys.argv[1]), int(sys.argv[2]))
+    if args.licensePlate:
+        searchByLicensePlate(session, int(args.licensePlate))
+    elif args.modelName:
+        searchByModelName(session, args.modelName)
+    elif args.makeCode and args.modelCode:
+        searchByMakeModelCode(session, int(args.makeCode), int(args.modelCode))
+    else:
+        print(f"{'-m' if args.makeCode else '-M'} missing, exiting")
 
 if __name__ == "__main__":
     main()
