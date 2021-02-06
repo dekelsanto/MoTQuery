@@ -16,9 +16,14 @@ JSON_NAME_TO_KEY_MAPPING = {
     "Color": "tzeva_rechev",
     "Manufacturer number": "tozeret_cd",
     "Model number": "degem_cd",
+    "First registered on": "moed_aliya_lakvish",
+    "Decommisioned on": "bitul_dt",
 }
 
 INLINE_PRINT_FIELDS = ["Registration", "Chassis", "Color"]
+
+ACTIVE_VEHICLES_RESOURCE_ID = "053cea08-09bc-40ec-8f7a-156f0677aff3"
+DEAD_VEHICLES_RESOURCE_ID = "851ecab1-0622-4dbe-a6c7-f950cf82abf9"
 
 
 def communicate(session, request):
@@ -27,11 +32,12 @@ def communicate(session, request):
 def generateJson(jsonDict):
     return json.dumps(jsonDict)
 
-def generateHTTPRequest(filtersJson, count):
-    return requests.Request(method="GET", url=f"https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&filters={filtersJson}&limit={count}&include_total=true")
+def generateHTTPRequest(filtersJson, count, useDeadCarsResourceID=False):
+    resourceID = DEAD_VEHICLES_RESOURCE_ID if useDeadCarsResourceID else ACTIVE_VEHICLES_RESOURCE_ID
+    return requests.Request(method="GET", url=f"https://data.gov.il/api/3/action/datastore_search?resource_id={resourceID}&filters={filtersJson}&limit={count}&include_total=true")
 
-def generateLicensePlateRequest(licensePlate):
-    return generateHTTPRequest(generateJson({"mispar_rechev": licensePlate}), 1)
+def generateLicensePlateRequest(licensePlate, searchForDeadCars=False):
+    return generateHTTPRequest(generateJson({"mispar_rechev": licensePlate}), 1, searchForDeadCars)
 
 def generateRequestByParams(params, count):
     return generateHTTPRequest(generateJson(params), count)
@@ -67,7 +73,8 @@ def formatPrint(jsonReply, fieldName, fieldKey):
 def printVehicleDetails(jsonReply):
     print(f"*** Vehicle details for reg.# {jsonReply['mispar_rechev']} ***")
     for name, key in JSON_NAME_TO_KEY_MAPPING.items():
-        formatPrint(jsonReply, name, key)
+        if key in jsonReply:
+            formatPrint(jsonReply, name, key)
     # print(jsonReply)
     print("")
 
@@ -78,6 +85,14 @@ def inlinePrintVehicleDetails(jsonReply, inlinePrintFields=INLINE_PRINT_FIELDS):
 def searchByLicensePlate(session, licensePlate):
     licensePlateRequest = generateLicensePlateRequest(licensePlate)
     licensePlateReply = communicate(session, licensePlateRequest)
+    if not licensePlateReply["records"]:
+        licensePlateRequest = generateLicensePlateRequest(licensePlate, True)
+        licensePlateReply = communicate(session, licensePlateRequest)
+        if licensePlateReply["records"]:
+            print("Vehicle is dead")
+        else:
+            print("Vehicle not found.")
+            return
     printVehicleDetails(licensePlateReply["records"][0])
 
 def baseSearchAll(session, searchParams, extraPrintFields=[]):
